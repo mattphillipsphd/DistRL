@@ -5,6 +5,7 @@
 #include "state.h"
 #include "value.h"
 
+//Critical to distinguish *global* state indices from chunk-local state indices
 class RLBase
 {
     public:
@@ -16,7 +17,8 @@ class RLBase
             const int nS = states.size();
             double* V = vp->V;
             int* policy = vp->policy;
-            memset(V, 0, sizeof(double)*nS);
+//            for (int s=0; s<nS; ++s)
+//                std::cout << states[s]->Id() << ", " << V[s] << std::endl;
 
             int ct=0;
             bool is_policy_stable = false;
@@ -30,9 +32,18 @@ class RLBase
                     int a = policy[s]; //Deterministic policies
                     const State* state = states.at(s);
                     double acc = 0.0;
-                    for (int sp=0; sp<nS; ++sp)
-                        acc += state->Prob(sp, a) * (state->Rew(sp, a) + _gamma*Vprev[sp]);
-                    V[s] = acc;
+                    std::unordered_set<int> statep = state->NextStates();
+                    for (auto it : statep)
+                    {
+                        auto iter = std::find_if(states.cbegin(), states.cend(), [it](const State* state)
+                        {
+                            return it == state->Id();
+                        });
+                        const int sp = iter - states.cbegin();
+                        acc += state->Prob(it, a) * (state->Rew(it, a) + _gamma*Vprev[sp]);
+                    }
+                    if (!statep.empty()) //We let absorbing states hold onto their values
+                        V[s] = acc;
                 }
 
                 //Policy improvement
@@ -45,8 +56,16 @@ class RLBase
                     for (int a=0; a<nA; ++a)
                     {
                         double acc = 0.0;
-                        for (int sp=0; sp<nS; ++sp)
-                            acc += state->Prob(sp, a) * (state->Rew(sp, a) + _gamma*V[sp]);
+                        std::unordered_set<int> statep = state->NextStates();
+                        for (auto it : statep)
+                        {
+                            auto iter = std::find_if(states.cbegin(), states.cend(), [it](const State* state)
+                            {
+                                return it == state->Id();
+                            });
+                            const int sp = iter - states.cbegin();
+                            acc += state->Prob(it, a) * (state->Rew(it, a) + _gamma*V[sp]);
+                        }
                         A_sp.push_back(acc);
                     }
                     auto it = std::max_element(A_sp.cbegin(), A_sp.cend());
@@ -59,6 +78,39 @@ class RLBase
                     }
                 }
             }
+//            for (int s=0; s<nS; ++s)
+//                std::cout << states[s]->Id() << ", " << V[s] << std::endl;
+
+            //Now associate the absorbing states with gamma times the mean of the
+            //value of all states that project to them
+            for (int s=0; s<nS; ++s)
+            {
+                const State* state = states.at(s);
+                if ( state->NextStates().empty() )
+                {
+                    const std::vector<int>& bs = state->BackStates();
+                    double acc = 0.0;
+                    int ct = 0;
+                    for (auto it : bs)
+                    {
+                        auto iter = std::find_if(states.cbegin(), states.cend(), [it](const State* state)
+                        {
+                            return it == state->Id();
+                        });
+                        if (iter == states.cend()) continue; //Can happen for closure states
+                        const int sp = iter - states.cbegin();
+                        const State* sprev = states.at(sp);
+                        for (int a=0; a<nA; ++a)
+                            if (sprev->Prob(state->Id(), a) > 0)
+                            {
+                                acc += _gamma * V[sp];
+                                ++ct;
+                            }
+                    }
+                    V[s] = acc/ct;
+               }
+            }
+
         }
 
     private:

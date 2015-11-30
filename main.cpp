@@ -5,7 +5,7 @@
 int main()
 {
     const int nA = 2, //0=Left or 1=right
-            nS = 7; //Start with 1d Markov chain
+            nS = 13; //Start with 1d Markov chain
 
     TransProb P(nS, nA);
 
@@ -18,7 +18,7 @@ int main()
     //One reward state, another 0 state, everything else negative
     TransProb R(nS, nA, -1.0/(double)(nS-3));
     R.Val(1, 0, 0) = 0;
-    R.Val(nS-2, nS-1, 1) = 1;
+    R.Val(nS-2, nS-1, 1) = 0.6;
 
     //Create all the states
     std::vector<State*> states;
@@ -35,33 +35,72 @@ int main()
                     Rfmap[a][sp] = R.Val(s,sp,a);
                 }
 
-        states.push_back( new State(vs, Pfmap, Rfmap) );
+        states.push_back( new State(s, vs, Pfmap, Rfmap) );
     }
 
     //Put the states into chunks
-    Chunk chunk(nA);
-    for (auto it : states)
-        chunk.AddState(it);
+    const int num_chunks = 2;
+    std::vector<Chunk*> chunks;
+    for (int c=0; c<num_chunks; ++c)
+        chunks.push_back( new Chunk(nA) );
 
-    //Initialize with appropriate algorithm
-    const double gamma = 1;
-    RLBase* rl = new RLBase(gamma);
-    chunk.SetRL(rl);
+//    chunks[1]->AddState( states.at(6) );
+    for (int i=0; i<nS; ++i)
+    {
+        chunks.at( (num_chunks*i)/nS )->AddState( states.at(i) );
+    }
+//    chunks[0]->AddState( states.at(7) );
 
-    //Evaluate the chunk
-    chunk.Evaluate();
+    Value master(nS);
+    master.Init0();
+    for (int c=0; c<num_chunks; ++c)
+    {
+        Chunk* chunk = chunks[c];
+
+        //Add nodes to get closure
+        std::vector<int> closure = chunk->Closure();
+        for (auto it : closure)
+            chunk->AddState( new State(it, P.FindS(it)) );
+
+        //Initialize with appropriate algorithm
+        const double gamma = 1;
+        RLBase* rl = new RLBase(gamma);
+        chunk->SetRL(rl);
+    }
+
+    for (int i=0; i<3; ++i)
+    {
+        for (int c=0; c<num_chunks; ++c)
+        {
+            Chunk* chunk = chunks[c];
+
+            //Initialize with the current master list
+            chunk->Initialize(master);
+
+            //Evaluate the chunk
+            chunk->Evaluate();
+//            std::cout << "\nChunk " << c << ": " << std::endl;
+//            chunk->GetValue()->Write();
+            chunk->Update(master);
+
+            std::cout << "\nChunk " << c << ": " << std::endl;
+            master.Write();
+
+        }
+    }
+
+    std::cout << "Final valuation and policy:" << std::endl;
+    master.Write();
 
     //Gather results
-    const double* V = chunk.V();
-    for (int s=0; s<nS; ++s)
-        std::cout << V[s] << ", ";
-    std::cout << std::endl;
-    const int* policy = chunk.Policy();
-    for (int s=0; s<nS; ++s)
-        std::cout << policy[s] << ", ";
-    std::cout << std::endl;
-
-    delete rl;
+/*    for (int c=0; c<num_chunks; ++c)
+    {
+        Chunk* chunk = chunks[c];
+        std::cout << "Chunk " << c << ": " << std::endl;
+        chunk->GetValue()->Write();
+    }
+*/
+//    delete rl;
     for (auto it : states) delete it;
 
     return 0;

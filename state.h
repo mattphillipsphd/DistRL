@@ -6,6 +6,9 @@
 class State
 {
     public:
+        State(int id, const std::vector<int>& back) : _back(back), _id(id)
+        {
+        }
         State(int id, const std::vector<int>& back, const Fmap& P, const Fmap& R)
             : _back(back), _id(id), _P(P), _R(R)
         {
@@ -14,7 +17,18 @@ class State
         {
         }
 
+        const std::vector<int>& BackStates() const { return _back; }
         int Id() const { return _id; }
+        bool IsTerminal() const { return _P.empty(); }
+        std::unordered_set<int> NextStates() const //Cache this for speed
+        {
+            std::unordered_set<int> vs;
+            for (auto ita : _P)
+                for (auto itsp : ita.second)
+                    vs.insert(itsp.first);
+            return vs;
+        }
+
         double Prob(int sp, int a) const
         {
             if (_P.find(a) == _P.cend()) return 0.0;
@@ -28,10 +42,11 @@ class State
             return _R.at(a).at(sp);
         }
 
+
     private:
         std::vector<int> _back;
         const int _id;
-        Fmap _P, _R;
+        Fmap _P, _R; //<action, <statep, val> >
 };
 
 #endif // STATE_H
