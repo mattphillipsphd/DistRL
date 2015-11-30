@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "chunkmgr.h"
 #include "state.h"
 #include "transprob.h"
 
@@ -6,6 +7,7 @@ int main()
 {
     const int nA = 2, //0=Left or 1=right
             nS = 13; //Start with 1d Markov chain
+    const int num_chunks = 2;
 
     TransProb P(nS, nA);
 
@@ -39,17 +41,12 @@ int main()
     }
 
     //Put the states into chunks
-    const int num_chunks = 2;
     std::vector<Chunk*> chunks;
     for (int c=0; c<num_chunks; ++c)
         chunks.push_back( new Chunk(nA) );
 
-//    chunks[1]->AddState( states.at(6) );
     for (int i=0; i<nS; ++i)
-    {
         chunks.at( (num_chunks*i)/nS )->AddState( states.at(i) );
-    }
-//    chunks[0]->AddState( states.at(7) );
 
     Value master(nS);
     master.Init0();
@@ -68,7 +65,7 @@ int main()
         chunk->SetRL(rl);
     }
 
-    for (int i=0; i<3; ++i)
+    for (int i=0; i<10; ++i)
     {
         for (int c=0; c<num_chunks; ++c)
         {
@@ -83,8 +80,8 @@ int main()
 //            chunk->GetValue()->Write();
             chunk->Update(master);
 
-            std::cout << "\nChunk " << c << ": " << std::endl;
-            master.Write();
+//            std::cout << "\nChunk " << c << ": " << std::endl;
+//            master.Write();
 
         }
     }

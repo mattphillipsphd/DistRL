@@ -9,7 +9,8 @@ QMAKE_CXXFLAGS_DEBUG += -DDN_DEBUG
 SOURCES += main.cpp \
     state.cpp \
     chunk.cpp \
-    rlbase.cpp
+    rlbase.cpp \
+    chunkmgr.cpp
 
 include(deployment.pri)
 qtcAddDeployment()
@@ -21,5 +22,6 @@ HEADERS += \
     transprob.h \
     reward.h \
     rlbase.h \
-    value.h
+    value.h \
+    chunkmgr.h
 
